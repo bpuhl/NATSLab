@@ -1,0 +1,38 @@
+---
+- name: NATS pub/sub smoke test from client0
+  hosts: "{{ groups['nats_clients'][0] }}"
+  gather_facts: false
+  vars:
+    nats_url: "tls://{{ nats_public_fqdn }}:{{ nats_client_port }}"
+  tasks:
+    - name: Start subscriber in background
+      ansible.builtin.shell: |
+        set -e
+        rm -f /tmp/sub.out /tmp/sub.pid
+        nohup nats sub lab.test --server "{{ nats_url }}" >/tmp/sub.out 2>&1 &
+        echo $! > /tmp/sub.pid
+        sleep 2
+      changed_when: false
+
+    - name: Publish test message
+      ansible.builtin.command: nats pub lab.test hello --server "{{ nats_url }}"
+      changed_when: false
+
+    - name: Wait for delivery
+      ansible.builtin.pause:
+        seconds: 2
+
+    - name: Stop subscriber
+      ansible.builtin.shell: |
+        kill "$(cat /tmp/sub.pid)" 2>/dev/null || true
+      changed_when: false
+
+    - name: Assert message was received
+      ansible.builtin.command: grep -q hello /tmp/sub.out
+      register: assert_result
+      changed_when: false
+      failed_when: assert_result.rc != 0
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "NATS OK — pub/sub round-trip succeeded against {{ nats_url }}"

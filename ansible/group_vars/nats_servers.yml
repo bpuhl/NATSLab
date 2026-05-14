@@ -1,0 +1,5 @@
+---
+# Server-specific overrides. Cluster routes are derived in nats.conf.j2 from
+# each host's `nats_private_ip` var written by scripts/deploy.sh.
+nats_service_user: nats
+nats_service_group: nats

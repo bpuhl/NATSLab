@@ -229,6 +229,21 @@ resource natsARecord 'Microsoft.Network/dnsZones/A@2023-07-01' = {
 }
 
 /* -------------------------
+   NATS Node Public IPs (for SSH management from bphost)
+-------------------------- */
+
+resource natsPublicIp 'Microsoft.Network/publicIPAddresses@2023-05-01' = [for i in range(0, natsNodeCount): {
+  name: '${natsVmPrefix}${i}-pip'
+  location: location
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+  }
+}]
+
+/* -------------------------
    NATS Node NICs & VMs
 -------------------------- */
 
@@ -243,6 +258,9 @@ resource natsNic 'Microsoft.Network/networkInterfaces@2023-05-01' = [for i in ra
           privateIPAllocationMethod: 'Dynamic'
           subnet: {
             id: vnet.properties.subnets[0].id
+          }
+          publicIPAddress: {
+            id: natsPublicIp[i].id
           }
           loadBalancerBackendAddressPools: [
             {
@@ -309,41 +327,17 @@ resource natsVm 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
 }]
 
 /* -------------------------
-   Custom Script Extension for NATS nodes
--------------------------- */
-
-resource natsExtension 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = [for i in range(0, natsNodeCount): {
-  // FIX: use parent + plain name instead of slash-concatenation in a loop
-  parent: natsVm[i]
-  name: 'natsInstall'
-  location: location
-  properties: {
-    publisher: 'Microsoft.Azure.Extensions'
-    type: 'CustomScript'
-    typeHandlerVersion: '2.1'
-    autoUpgradeMinorVersion: true
-    settings: {
-      fileUris: []
-      // FIX: commandToExecute is a single valid Bicep string.
-      //      Shell single-quoted. jq filter uses --arg to avoid quoting the pattern.
-      //      Config files written via base64-encoded blobs to avoid all shell quoting.
-      commandToExecute: 'bash -c \'set -e; apt-get update -y; apt-get install -y curl unzip jq openssl ca-certificates apt-transport-https lsb-release gnupg; if ! command -v az >/dev/null 2>&1; then curl -sL https://aka.ms/InstallAzureCLIDeb | bash; fi; az login --identity >/dev/null; mkdir -p /tmp/natscert; cd /tmp/natscert; az keyvault secret download --vault-name ${keyVaultName} --name ${pfxSecretName} --file cert.pfx; openssl pkcs12 -in cert.pfx -out cert.pem -clcerts -nokeys -nodes -passin pass:; openssl pkcs12 -in cert.pfx -out key.pem -nocerts -nodes -passin pass:; mkdir -p /etc/nats/certs; cp cert.pem /etc/nats/certs/cert.pem; cp key.pem /etc/nats/certs/key.pem; chmod 600 /etc/nats/certs/key.pem; chmod 644 /etc/nats/certs/cert.pem; cd /tmp; NATS_DL=$(curl -s https://api.github.com/repos/nats-io/nats-server/releases/latest | jq -r --arg p linux-amd64.zip \'.assets[] | select(.name | test($p)) | .browser_download_url\'); curl -L $NATS_DL -o nats-server.zip; unzip nats-server.zip; mv nats-server /usr/local/bin/nats-server; chmod +x /usr/local/bin/nats-server; mkdir -p /etc/nats; echo cG9ydDogNDIyMgpodHRwX3BvcnQ6IDgyMjIKdGxzIHsKICBjZXJ0X2ZpbGU6IC9ldGMvbmF0cy9jZXJ0cy9jZXJ0LnBlbQogIGtleV9maWxlOiAvZXRjL25hdHMvY2VydHMva2V5LnBlbQp9CmNsdXN0ZXIgewogIG5hbWU6IGxhYgogIHBvcnQ6IDYyMjIKICByb3V0ZXM6IFsKICAgIG5hdHMtcm91dGU6Ly9uYXRzLW5vZGUwOjYyMjIKICAgIG5hdHMtcm91dGU6Ly9uYXRzLW5vZGUxOjYyMjIKICAgIG5hdHMtcm91dGU6Ly9uYXRzLW5vZGUyOjYyMjIKICAgIG5hdHMtcm91dGU6Ly9uYXRzLW5vZGUzOjYyMjIKICBdCiAgdGxzIHsKICAgIGNlcnRfZmlsZTogL2V0Yy9uYXRzL2NlcnRzL2NlcnQucGVtCiAgICBrZXlfZmlsZTogL2V0Yy9uYXRzL2NlcnRzL2tleS5wZW0KICB9Cn0K | base64 -d > /etc/nats/nats.conf; echo W1VuaXRdCkRlc2NyaXB0aW9uPU5BVFMgU2VydmVyCkFmdGVyPW5ldHdvcmsudGFyZ2V0CgpbU2VydmljZV0KRXhlY1N0YXJ0PS91c3IvbG9jYWwvYmluL25hdHMtc2VydmVyIC1jIC9ldGMvbmF0cy9uYXRzLmNvbmYKUmVzdGFydD1vbi1mYWlsdXJlClVzZXI9cm9vdApMaW1pdE5PRklMRT02NTUzNgoKW0luc3RhbGxdCldhbnRlZEJ5PW11bHRpLXVzZXIudGFyZ2V0Cg== | base64 -d > /etc/systemd/system/nats-server.service; systemctl daemon-reload; systemctl enable nats-server; systemctl start nats-server\''
-    }
-  }
-}]
-
-/* -------------------------
    Client NICs & VMs
 -------------------------- */
 
 resource clientPublicIp 'Microsoft.Network/publicIPAddresses@2023-05-01' = {
-  name: '${clientVmPrefix}-0-pip'
+  name: '${clientVmPrefix}0-pip'
   location: location
   sku: {
-    name: 'Basic'
+    name: 'Standard'
   }
   properties: {
-    publicIPAllocationMethod: 'Dynamic'
+    publicIPAllocationMethod: 'Static'
   }
 }
 
@@ -419,35 +413,21 @@ resource clientVm 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in ran
 }]
 
 /* -------------------------
-   Custom Script Extension for client VMs
-   (install NATS CLI + test pub/sub)
+   Outputs (consumed by ansible/inventory.yml.j2 via scripts/deploy.sh)
 -------------------------- */
 
-resource clientExtension 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = [for i in range(0, clientNodeCount): {
-  // FIX: use parent + plain name instead of slash-concatenation in a loop
-  parent: clientVm[i]
-  name: 'natsCliTest'
-  location: location
-  properties: {
-    publisher: 'Microsoft.Azure.Extensions'
-    type: 'CustomScript'
-    typeHandlerVersion: '2.1'
-    autoUpgradeMinorVersion: true
-    settings: {
-      fileUris: []
-      // FIX: commandToExecute is a single valid Bicep string.
-      //      FIX: NATS CLI installed via official GitHub release binary, not the
-      //           broken pipe-to-bash URL used previously.
-      //      FIX: closing quote was mismatched ("' -> "); corrected to '"'
-      commandToExecute: 'bash -c \'set -e; apt-get update -y; apt-get install -y curl unzip jq; NATS_CLI_URL=$(curl -s https://api.github.com/repos/nats-io/natscli/releases/latest | jq -r --arg p linux-amd64.zip \'.assets[] | select(.name | test($p)) | .browser_download_url\'); curl -L $NATS_CLI_URL -o nats-cli.zip; unzip nats-cli.zip; mv nats/nats /usr/local/bin/nats; chmod +x /usr/local/bin/nats; NATS_URL=tls://${natsHostName}.${dnsZoneName}:4222; nats sub lab.test --server $NATS_URL > /tmp/sub.txt 2>&1 & SUB_PID=$!; sleep 2; nats pub lab.test hello --server $NATS_URL; sleep 2; kill $SUB_PID 2>/dev/null; grep -q hello /tmp/sub.txt && echo NATS OK || { echo NATS FAIL; exit 1; }\''
-    }
-  }
-}]
-
-/* -------------------------
-   Outputs
--------------------------- */
-
+output natsHostName string = natsHostName
+output dnsZoneName string = dnsZoneName
 output natsPublicFqdn string = '${natsHostName}.${dnsZoneName}'
 output loadBalancerPublicIp string = publicIp.properties.ipAddress
-output client0Ssh string = 'ssh ${adminUsername}@${clientPublicIp.properties.ipAddress}'
+output adminUsername string = adminUsername
+output keyVaultName string = keyVaultName
+output pfxSecretName string = pfxSecretName
+
+output natsNodeNames array = [for i in range(0, natsNodeCount): '${natsVmPrefix}${i}']
+output natsNodePublicIps array = [for i in range(0, natsNodeCount): natsPublicIp[i].properties.ipAddress]
+output natsNodePrivateIps array = [for i in range(0, natsNodeCount): natsNic[i].properties.ipConfigurations[0].properties.privateIPAddress]
+
+output clientNames array = [for i in range(0, clientNodeCount): '${clientVmPrefix}${i}']
+output clientPrivateIps array = [for i in range(0, clientNodeCount): clientNic[i].properties.ipConfigurations[0].properties.privateIPAddress]
+output client0PublicIp string = clientPublicIp.properties.ipAddress

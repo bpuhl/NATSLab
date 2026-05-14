@@ -1,0 +1,25 @@
+## Rendered by Ansible. Do not edit on the server.
+
+port: {{ nats_client_port }}
+http_port: {{ nats_monitor_port }}
+
+server_name: {{ inventory_hostname }}
+
+tls {
+  cert_file: "{{ nats_cert_dir }}/cert.pem"
+  key_file:  "{{ nats_cert_dir }}/key.pem"
+}
+
+cluster {
+  name: {{ nats_cluster_name }}
+  port: {{ nats_cluster_port }}
+  routes: [
+{% for host in groups['nats_servers'] %}
+    nats-route://{{ hostvars[host].nats_private_ip }}:{{ nats_cluster_port }}{{ "," if not loop.last else "" }}
+{% endfor %}
+  ]
+  tls {
+    cert_file: "{{ nats_cert_dir }}/cert.pem"
+    key_file:  "{{ nats_cert_dir }}/key.pem"
+  }
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=NATS Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart={{ nats_install_bin }} -c {{ nats_config_dir }}/nats.conf
+Restart=on-failure
+RestartSec=5
+User={{ nats_service_user }}
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

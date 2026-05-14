@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "value": "azureuser"
+    },
+    "adminSshPublicKey": {
+      "value": "ssh-ed25519 AAAA... your-key-here ..."
+    },
+    "vmSize": {
+      "value": "Standard_B2ts_v2"
+    },
+    "dnsZoneName": {
+      "value": "lab.imav8n.com"
+    },
+    "natsHostName": {
+      "value": "nats"
+    },
+    "keyVaultName": {
+      "value": "kv-natslab"
+    },
+    "pfxSecretName": {
+      "value": "natslab-tls"
+    },
+    "natsNodeCount": {
+      "value": 4
+    },
+    "clientNodeCount": {
+      "value": 2
+    }
+  }
+}

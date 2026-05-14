@@ -1,0 +1,30 @@
+---
+- name: Check installed nats CLI version
+  ansible.builtin.command: "{{ nats_cli_install_bin }} --version"
+  register: nats_cli_installed_version
+  failed_when: false
+  changed_when: false
+
+- name: Download nats CLI release archive
+  ansible.builtin.get_url:
+    url: "https://github.com/nats-io/natscli/releases/download/v{{ nats_cli_version }}/nats-{{ nats_cli_version }}-{{ nats_cli_arch }}.zip"
+    dest: "/tmp/nats-cli-v{{ nats_cli_version }}.zip"
+    mode: "0644"
+  when: nats_cli_version not in (nats_cli_installed_version.stdout | default(''))
+
+- name: Unpack nats CLI archive
+  ansible.builtin.unarchive:
+    src: "/tmp/nats-cli-v{{ nats_cli_version }}.zip"
+    dest: /tmp/
+    remote_src: yes
+  when: nats_cli_version not in (nats_cli_installed_version.stdout | default(''))
+
+- name: Install nats CLI binary
+  ansible.builtin.copy:
+    src: "/tmp/nats-{{ nats_cli_version }}-{{ nats_cli_arch }}/nats"
+    dest: "{{ nats_cli_install_bin }}"
+    remote_src: yes
+    owner: root
+    group: root
+    mode: "0755"
+  when: nats_cli_version not in (nats_cli_installed_version.stdout | default(''))

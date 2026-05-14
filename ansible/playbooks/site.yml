@@ -1,0 +1,4 @@
+---
+- ansible.builtin.import_playbook: servers.yml
+- ansible.builtin.import_playbook: clients.yml
+- ansible.builtin.import_playbook: smoketest.yml

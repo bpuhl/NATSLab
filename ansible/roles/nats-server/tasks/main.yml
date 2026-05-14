@@ -1,0 +1,105 @@
+---
+- name: Create nats system group
+  ansible.builtin.group:
+    name: "{{ nats_service_group }}"
+    system: yes
+    state: present
+
+- name: Create nats system user
+  ansible.builtin.user:
+    name: "{{ nats_service_user }}"
+    group: "{{ nats_service_group }}"
+    system: yes
+    create_home: no
+    shell: /usr/sbin/nologin
+    state: present
+
+- name: Ensure NATS config directory ownership
+  ansible.builtin.file:
+    path: "{{ nats_config_dir }}"
+    state: directory
+    owner: "{{ nats_service_user }}"
+    group: "{{ nats_service_group }}"
+    mode: "0750"
+
+- name: Ensure cert directory exists
+  ansible.builtin.file:
+    path: "{{ nats_cert_dir }}"
+    state: directory
+    owner: "{{ nats_service_user }}"
+    group: "{{ nats_service_group }}"
+    mode: "0750"
+
+- name: Copy cert.pem from control node
+  ansible.builtin.copy:
+    src: "{{ cert_stage_dir }}/cert.pem"
+    dest: "{{ nats_cert_dir }}/cert.pem"
+    owner: "{{ nats_service_user }}"
+    group: "{{ nats_service_group }}"
+    mode: "0644"
+  notify: restart nats-server
+
+- name: Copy key.pem from control node
+  ansible.builtin.copy:
+    src: "{{ cert_stage_dir }}/key.pem"
+    dest: "{{ nats_cert_dir }}/key.pem"
+    owner: "{{ nats_service_user }}"
+    group: "{{ nats_service_group }}"
+    mode: "0600"
+  notify: restart nats-server
+
+- name: Check installed nats-server version
+  ansible.builtin.command: "{{ nats_install_bin }} --version"
+  register: nats_installed_version
+  failed_when: false
+  changed_when: false
+
+- name: Download nats-server release archive
+  ansible.builtin.get_url:
+    url: "https://github.com/nats-io/nats-server/releases/download/v{{ nats_server_version }}/nats-server-v{{ nats_server_version }}-{{ nats_server_arch }}.zip"
+    dest: "/tmp/nats-server-v{{ nats_server_version }}.zip"
+    mode: "0644"
+  when: nats_server_version not in (nats_installed_version.stdout | default(''))
+
+- name: Unpack nats-server archive
+  ansible.builtin.unarchive:
+    src: "/tmp/nats-server-v{{ nats_server_version }}.zip"
+    dest: /tmp/
+    remote_src: yes
+  when: nats_server_version not in (nats_installed_version.stdout | default(''))
+
+- name: Install nats-server binary
+  ansible.builtin.copy:
+    src: "/tmp/nats-server-v{{ nats_server_version }}-{{ nats_server_arch }}/nats-server"
+    dest: "{{ nats_install_bin }}"
+    remote_src: yes
+    owner: root
+    group: root
+    mode: "0755"
+  when: nats_server_version not in (nats_installed_version.stdout | default(''))
+  notify: restart nats-server
+
+- name: Render nats.conf
+  ansible.builtin.template:
+    src: nats.conf.j2
+    dest: "{{ nats_config_dir }}/nats.conf"
+    owner: "{{ nats_service_user }}"
+    group: "{{ nats_service_group }}"
+    mode: "0640"
+  notify: restart nats-server
+
+- name: Render nats-server systemd unit
+  ansible.builtin.template:
+    src: nats-server.service.j2
+    dest: /etc/systemd/system/nats-server.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart nats-server
+
+- name: Enable and start nats-server
+  ansible.builtin.systemd:
+    name: nats-server
+    enabled: yes
+    state: started
+    daemon_reload: yes

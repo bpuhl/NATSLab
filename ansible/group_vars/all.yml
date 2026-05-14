@@ -1,0 +1,20 @@
+---
+nats_server_version: "2.10.22"
+nats_cli_version: "0.1.5"
+
+nats_server_arch: "linux-amd64"
+nats_cli_arch: "linux-amd64"
+
+nats_config_dir: /etc/nats
+nats_cert_dir: /etc/nats/certs
+nats_install_bin: /usr/local/bin/nats-server
+nats_cli_install_bin: /usr/local/bin/nats
+
+nats_client_port: 4222
+nats_cluster_port: 6222
+nats_monitor_port: 8222
+nats_cluster_name: lab
+
+# Staging directory on the control node (bphost) where the cert PEMs live
+# between the nats-cert play and the nats-server play.
+cert_stage_dir: /tmp/natslab-cert

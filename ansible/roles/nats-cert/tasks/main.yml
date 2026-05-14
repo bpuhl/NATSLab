@@ -1,0 +1,43 @@
+---
+# Runs on localhost (control node = bphost). Fetches the PFX from Key Vault,
+# converts it to PEM cert + key, and leaves them in cert_stage_dir for the
+# nats-server role to copy into each NATS VM.
+
+- name: Create staging directory on control node
+  ansible.builtin.file:
+    path: "{{ cert_stage_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Download PFX from Key Vault
+  ansible.builtin.command:
+    cmd: >-
+      az keyvault secret download
+      --vault-name {{ key_vault_name }}
+      --name {{ pfx_secret_name }}
+      --file {{ cert_stage_dir }}/cert.pfx
+      --encoding base64
+  changed_when: true
+
+- name: Extract certificate (PEM)
+  ansible.builtin.command:
+    cmd: >-
+      openssl pkcs12
+      -in {{ cert_stage_dir }}/cert.pfx
+      -out {{ cert_stage_dir }}/cert.pem
+      -clcerts -nokeys -nodes -passin pass:
+  changed_when: true
+
+- name: Extract private key (PEM)
+  ansible.builtin.command:
+    cmd: >-
+      openssl pkcs12
+      -in {{ cert_stage_dir }}/cert.pfx
+      -out {{ cert_stage_dir }}/key.pem
+      -nocerts -nodes -passin pass:
+  changed_when: true
+
+- name: Remove staged PFX (PEMs remain for distribution)
+  ansible.builtin.file:
+    path: "{{ cert_stage_dir }}/cert.pfx"
+    state: absent
