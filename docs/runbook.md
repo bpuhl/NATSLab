@@ -107,7 +107,7 @@ Then re-run only the config layer (no Bicep deploy):
 ansible-playbook -i ansible/inventory.yml ansible/playbooks/servers.yml
 ```
 
-The role detects the new version, downloads it, replaces `/usr/local/bin/nats-server`, and the `Restart nats-server` handler restarts the unit. Use `--limit nats-node0` first if you want a canary.
+The role detects the new version, downloads it, replaces `/usr/local/bin/nats-server`, and the `restart nats-server` handler restarts the unit. Use `--limit nats-node0` first if you want a canary.
 
 ### Change `nats.conf` (e.g. enable JetStream)
 
