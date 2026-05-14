@@ -56,7 +56,7 @@ A thin bash wrapper (`scripts/deploy.sh`) glues them together: it runs `az deplo
                               |  │   :4222 :6222 :8222 │ |
                               |  │                     │ |
                               |  │  nats-client0       │ |  public IP (SSH + smoke test)
-                              |  │  nats-client1       │ |  private only (ProxyJump via client0)
+                              |  │  nats-client1       │ |  private only (bphost needs L3 to subnet)
                               |  └─────────────────────┘ |
                               +---------------------------+
 ```
@@ -83,10 +83,9 @@ Defined in [infra/NATSDeploy.bicep](infra/NATSDeploy.bicep). No more `Microsoft.
 | `natsNodePublicIps[]`          | `ansible_host` for nats_servers          |
 | `natsNodePrivateIps[]`         | cluster routes in `nats.conf`            |
 | `clientNames[]`                | inventory hostnames                      |
-| `client0PublicIp`              | `ansible_host` for client0 + ProxyJump  |
-| `clientPrivateIps[]`           | `ansible_host` for client1               |
-| `natsHostName`, `dnsZoneName`  | NATS URL for clients and smoke test     |
-| `natsPublicFqdn`               | convenience output (`<host>.<zone>`)    |
+| `client0PublicIp`              | `ansible_host` for client0               |
+| `clientPrivateIps[]`           | `ansible_host` for client1 + `private_ip` |
+| `natsPublicFqdn`               | `nats_public_fqdn` (smoke test URL)     |
 | `keyVaultName`, `pfxSecretName` | cert fetch on bphost                   |
 | `adminUsername`                | `ansible_user`                           |
 | `loadBalancerPublicIp`         | reference / DNS verification             |
@@ -121,14 +120,13 @@ ansible/
 The `nats-server` role then `copy:`s those PEMs to each node (`/etc/nats/certs/{cert,key}.pem`). This **eliminates the need for per-VM `az login --identity`** and avoids granting Key Vault access to each VM's MSI.
 
 **`nats-server` role**:
-- Creates a system user `nats`.
-- Downloads the latest `nats-server` Linux release from GitHub.
-- Renders `/etc/nats/nats.conf` from a Jinja template that iterates `groups['nats_servers']` and emits a route to each node's private IP on 6222.
-- Renders `/etc/systemd/system/nats-server.service` (runs as `nats`, `Restart=on-failure`, `LimitNOFILE=65536`).
-- `systemctl daemon-reload` + `enable` + `start`.
+- Downloads the pinned `nats-server` Linux release from GitHub if the installed version differs.
+- Renders `/etc/nats/nats.conf` from a Jinja template that iterates `groups['nats_servers']` and emits a route per node by short hostname (resolved via Azure VNet DNS) on 6222.
+- Renders `/etc/systemd/system/nats-server.service` (runs as `nats_service_user` — default `root` — with `Restart=on-failure` and `LimitNOFILE=65536`).
+- `systemctl daemon-reload` + `enable` + `start`. A `restart nats-server` handler fires on cert / config / unit / binary change.
 
 **`nats-client` role**:
-- Downloads the latest `natscli` release.
+- Downloads the pinned `natscli` release if the installed version differs.
 - Installs the `nats` binary at `/usr/local/bin/nats`.
 
 **`smoketest.yml`**: from `nats-client0`, subscribes to `lab.test`, publishes `hello`, asserts receipt within 2 s. This replaces the old CSE smoke test.
@@ -178,25 +176,31 @@ A future iteration can combine **Packer** (golden image with `nats-server` pre-i
 
 - **Per-VM public IPs on NATS nodes** — adds 4 public IPs (cost) but removes the need for VNet peering between bphost and the lab VNet, and lets bphost address each node directly. The NSG already allowed SSH from the internet, so blast radius is unchanged.
 - **Cert fetched once on bphost, distributed via Ansible** — single point of cert handling, no per-VM Azure CLI install, no KV access policy per MSI. Trade-off: the PEMs briefly exist on bphost in `/tmp/natslab-cert/`.
-- **Cluster routes use private IPs from Bicep outputs** — rather than relying on Azure-provided short-name DNS. More resilient to DNS changes.
-- **`client1` reached via `ProxyJump` through `client0`** — keeps `client1` private and provides a realistic two-tier client topology for tests.
+- **Cluster routes use short hostnames** — relies on Azure-provided VNet DNS to resolve `nats-node{0..3}`. Same convention as the prior CSE design.
+- **`client1` is reached by its private IP** — keeps `client1` private; requires `bphost` to have L3 reachability to `10.0.1.0/24` (same VNet, peering, or extend the inventory template with `ProxyJump`).
+- **NATS service runs as root by default** — `nats_service_user` is set in `group_vars/nats_servers.yml`. Acceptable for a lab; production would prefer a dedicated `nats` user.
+- **Versions are pinned** — `nats_server_version` and `nats_cli_version` are explicit semver strings in `group_vars/all.yml`, not `latest`.
 
 ## 11. Files in This Repo
 
 ```
 NATSLab/
+├── README.md                        # top-level intro and quick-start
 ├── Spec.md                          # this file (architecture)
 ├── infra.parameters.example.json    # template — copy to infra.parameters.json
 ├── infra/
 │   └── NATSDeploy.bicep             # infrastructure (no extensions)
 ├── docs/
-│   ├── plan.md                      # implementation plan
+│   ├── architecture.md              # alternate / shorter architecture rendering
+│   ├── plan.md                      # phased implementation plan
 │   └── runbook.md                   # operational walkthrough
 ├── scripts/
-│   ├── bootstrap-bphost.sh          # one-time setup of bphost (ansible + az)
-│   └── deploy.sh                    # run on bphost; orchestrates bicep + ansible
+│   ├── bootstrap-bphost.sh          # one-time setup of bphost (ansible + az + jinja2)
+│   ├── deploy.sh                    # run on bphost; orchestrates bicep + ansible
+│   └── render-inventory.py          # Jinja2 renderer for inventory.yml.j2
 └── ansible/
     ├── ansible.cfg
+    ├── inventory.yml.j2             # template fed bicep outputs
     ├── group_vars/{all,nats_servers,nats_clients}.yml
     ├── playbooks/{site,servers,clients,smoketest}.yml
     └── roles/{common,nats-cert,nats-server,nats-client}/
