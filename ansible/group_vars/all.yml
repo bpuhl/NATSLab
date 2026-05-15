@@ -1,5 +1,5 @@
 ---
-nats_server_version: "2.10.22"
+nats_server_version: "2.14.0"
 nats_cli_version: "0.1.5"
 
 nats_server_arch: "linux-amd64"
