@@ -14,6 +14,9 @@ param vmSize string = 'Standard_B2ts_v2'
 @description('DNS zone name for your domain (hosted in Azure)')
 param dnsZoneName string = 'lab.imav8n.com'
 
+@description('Resource group that owns the DNS zone (may differ from the lab RG)')
+param dnsZoneResourceGroup string = 'overwatch'
+
 @description('Host name for the NATS lab (will become <host>.<zone>)')
 param natsHostName string = 'nats'
 
@@ -212,20 +215,16 @@ resource lb 'Microsoft.Network/loadBalancers@2023-05-01' = {
    DNS Zone + A record
 -------------------------- */
 
-resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
-  name: dnsZoneResourceName
-}
-
-resource natsARecord 'Microsoft.Network/dnsZones/A@2018-05-01' = {
-  parent: dnsZone
-  name: natsHostName
-  properties: {
-    TTL: 60
-    ARecords: [
-      {
-        ipv4Address: publicIp.properties.ipAddress
-      }
-    ]
+// DNS zone lives in a separate resource group (e.g. "overwatch"), so the A
+// record is created via a module scoped to that RG. The principal running
+// this deployment needs DNS Zone Contributor on the zone's RG.
+module natsARecord 'modules/dnsARecord.bicep' = {
+  name: 'natsARecord-deployment'
+  scope: resourceGroup(dnsZoneResourceGroup)
+  params: {
+    dnsZoneName: dnsZoneResourceName
+    recordName: natsHostName
+    ipv4Address: publicIp.properties.ipAddress
   }
 }
 

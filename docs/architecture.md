@@ -33,35 +33,41 @@ A bash wrapper (`scripts/deploy.sh`) glues them together: it runs `az deployment
 ## 4. Components
 
 ```
-                                  +--------------------+
-                                  |  bphost (control)  |
-                                  |  - az CLI          |
-                                  |  - Ansible         |
-                                  |  - python3-jinja2  |
-                                  |  - this repo       |
-                                  +---------+----------+
-                                            |  SSH + Azure CLI
-                                            v
-+--------------------+        +-------------+-------------+
-|  Azure Key Vault   | <----- |  RG-NatsLab               |
-|  kv-natslab        |   az   |                           |
-|  secret: natslab-tls|       |  ┌─────────────────────┐ |
-+--------------------+        |  │ Standard LB         │ |  Public IP, DNS A: nats.lab.imav8n.com
-                              |  │   :4222 -> backend  │ |  <----- Internet :4222 (TLS)
-                              |  └─────────┬───────────┘ |
-                              |            │             |
-                              |  ┌─────────┴───────────┐ |
-                              |  │ natslab-vnet        │ |
-                              |  │ 10.0.0.0/16         │ |
-                              |  │ subnet 10.0.1.0/24  │ |
-                              |  │                     │ |
-                              |  │  nats-node0..3      │ |  per-VM public IPs (SSH only)
-                              |  │   :4222 :6222 :8222 │ |
-                              |  │                     │ |
-                              |  │  nats-client0       │ |  public IP (SSH + smoke test)
-                              |  │  nats-client1       │ |  private only (bphost must have L3 to this subnet)
-                              |  └─────────────────────┘ |
-                              +---------------------------+
++----------------------------- RG: overwatch -----------------------------+
+|                                                                         |
+|   +--------------------+        +-------------------------+              |
+|   |  bphost (control)  |        |  Azure Key Vault        |              |
+|   |  - az CLI          |        |  kv-natslab             |              |
+|   |  - Ansible         |        |  secret: natslab-tls    |              |
+|   |  - python3-jinja2  |        +-------------------------+              |
+|   |  - this repo       |                                                 |
+|   +---------+----------+        +-------------------------+              |
+|             |                   |  DNS zone               |              |
+|             |  SSH + Azure CLI  |  lab.imav8n.com         |              |
+|             |                   |  (A record written by   |              |
+|             |                   |   cross-RG module)      |              |
+|             |                   +-------------------------+              |
++-------------|-----------------------------------------------------------+
+              v
++----------------------------- RG: RG-NatsLab ----------------------------+
+|                                                                         |
+|   ┌─────────────────────┐                                                |
+|   │ Standard LB         │  Public IP, DNS A: nats.lab.imav8n.com         |
+|   │   :4222 -> backend  │  <----- Internet :4222 (TLS)                  |
+|   └─────────┬───────────┘                                                |
+|             │                                                            |
+|   ┌─────────┴───────────┐                                                |
+|   │ natslab-vnet        │                                                |
+|   │ 10.0.0.0/16         │                                                |
+|   │ subnet 10.0.1.0/24  │                                                |
+|   │                     │                                                |
+|   │  nats-node0..3      │  per-VM public IPs (SSH only)                  |
+|   │   :4222 :6222 :8222 │                                                |
+|   │                     │                                                |
+|   │  nats-client0       │  public IP (SSH + smoke test)                  |
+|   │  nats-client1       │  private only (bphost must have L3)            |
+|   └─────────────────────┘                                                |
++-------------------------------------------------------------------------+
 ```
 
 ## 5. What Bicep Owns
@@ -74,7 +80,7 @@ Defined in [infra/NATSDeploy.bicep](../infra/NATSDeploy.bicep). The two `Microso
   - frontend → `natslab-lb-pip` (static public IP)
   - backend → all four NATS NICs
   - TCP probe on 4222, rule 4222 → 4222
-- DNS zone `lab.imav8n.com` (existing) + A record `nats` → LB public IP
+- A record `nats` → LB public IP, written into the existing DNS zone `lab.imav8n.com` which lives in resource group `overwatch` (alongside `bphost` and `kv-natslab`). The cross-RG write is handled by `infra/modules/dnsARecord.bicep` invoked with `scope: resourceGroup(dnsZoneResourceGroup)`.
 - 4× `nats-node{0..3}` VMs, each with system-assigned managed identity and its own static Standard public IP (named `nats-node{i}-pip`)
 - 2× `nats-client{0..1}` VMs; `client0` has a static Standard public IP, `client1` is private only
 

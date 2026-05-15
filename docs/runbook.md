@@ -29,8 +29,9 @@ ansible --version
 | --- | --- |
 | Subscription | `bphost` identity has Contributor (or scoped Owner) on `RG-NatsLab`. |
 | Resource group | `RG-NatsLab` exists. |
-| DNS zone | `lab.imav8n.com` already exists in `RG-NatsLab` (Bicep declares it as `existing`). |
-| Key Vault | `kv-natslab` exists; secret `natslab-tls` holds the PFX (no password). |
+| Supporting RG | `overwatch` exists and contains `bphost`, `kv-natslab`, and the DNS zone `lab.imav8n.com`. |
+| DNS zone | `lab.imav8n.com` exists in `overwatch` (Bicep declares it as `existing` and writes the A record via a cross-RG module). The deploying principal needs `DNS Zone Contributor` on the zone or on `overwatch`. |
+| Key Vault | `kv-natslab` exists in `overwatch`; secret `natslab-tls` holds the PFX (no password). |
 | Key Vault access | `bphost`'s identity has `Get` on secrets in `kv-natslab`. |
 
 Grant Key Vault access to `bphost`'s system-assigned MSI (run from a workstation that already has Owner on the KV):
@@ -147,7 +148,7 @@ Bicep provisions the new VM, the inventory regenerates with it, and `nats.conf` 
 az group delete -n RG-NatsLab --yes --no-wait
 ```
 
-(The DNS zone is declared `existing` and is not deleted by this.)
+(The DNS zone lives in `overwatch` and is declared `existing`, so it's not deleted by this. Cleaning up the `nats` A record itself is manual — e.g. `az network dns record-set a delete -g overwatch -z lab.imav8n.com -n nats --yes`.)
 
 ## 5. Troubleshooting
 
