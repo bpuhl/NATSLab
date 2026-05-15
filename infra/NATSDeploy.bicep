@@ -212,12 +212,13 @@ resource lb 'Microsoft.Network/loadBalancers@2023-05-01' = {
    DNS Zone + A record
 -------------------------- */
 
-resource dnsZone 'Microsoft.Network/dnsZones@2023-07-01' existing = {
+resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
   name: dnsZoneResourceName
 }
 
-resource natsARecord 'Microsoft.Network/dnsZones/A@2023-07-01' = {
-  name: '${dnsZone.name}/${natsHostName}'
+resource natsARecord 'Microsoft.Network/dnsZones/A@2018-05-01' = {
+  parent: dnsZone
+  name: natsHostName
   properties: {
     TTL: 60
     ARecords: [
