@@ -65,7 +65,7 @@ A bash wrapper (`scripts/deploy.sh`) glues them together: it runs `az deployment
 |   │   :4222 :6222 :8222 │                                                |
 |   │                     │                                                |
 |   │  nats-client0       │  public IP (SSH + smoke test)                  |
-|   │  nats-client1       │  private only (bphost must have L3)            |
+|   │  nats-client1       │  per-VM public IP (parallel to client0)        |
 |   └─────────────────────┘                                                |
 +-------------------------------------------------------------------------+
 ```
@@ -82,7 +82,7 @@ Defined in [infra/NATSDeploy.bicep](../infra/NATSDeploy.bicep). The two `Microso
   - TCP probe on 4222, rule 4222 → 4222
 - A record `nats` → LB public IP, written into the existing DNS zone `lab.imav8n.com` which lives in resource group `overwatch` (alongside `bphost` and `kv-natslab`). The cross-RG write is handled by `infra/modules/dnsARecord.bicep` invoked with `scope: resourceGroup(dnsZoneResourceGroup)`.
 - 4× `nats-node{0..3}` VMs, each with system-assigned managed identity and its own static Standard public IP (named `nats-node{i}-pip`)
-- 2× `nats-client{0..1}` VMs; `client0` has a static Standard public IP, `client1` is private only
+- 2× `nats-client{0..1}` VMs; each has its own static Standard public IP for SSH from `bphost`
 
 **Bicep outputs consumed by `scripts/deploy.sh`**:
 
@@ -97,8 +97,8 @@ Defined in [infra/NATSDeploy.bicep](../infra/NATSDeploy.bicep). The two `Microso
 | `natsNodePublicIps[]`   | `ansible_host` per NATS node                           |
 | `natsNodePrivateIps[]`  | `private_ip` host var (cluster routes / debugging)     |
 | `clientNames[]`         | inventory hostnames in `nats_clients`                  |
-| `clientPrivateIps[]`    | `private_ip` host var; also `ansible_host` for client1 |
-| `client0PublicIp`       | `ansible_host` for client0                             |
+| `clientPublicIps[]`     | `ansible_host` per client                              |
+| `clientPrivateIps[]`    | `private_ip` host var                                  |
 
 ## 6. What Ansible Owns
 
@@ -206,13 +206,9 @@ Re-running `deploy.sh` is idempotent at both layers — Bicep is a declarative `
 
 ## 9. Network Reachability from bphost
 
-The inventory uses **public IPs** for all NATS nodes and `client0`, but **private IP** for `client1`. This means `bphost` must have layer-3 connectivity to `10.0.1.0/24` to reach `client1`. Options:
+The inventory uses **public IPs** for every lab VM (all NATS nodes and both clients). `bphost`, which lives in a different resource group (`overwatch`) and likely a different VNet, reaches each VM directly over its public IP — no peering or `ProxyJump` required.
 
-- **Same VNet** — deploy `bphost` into `natslab-vnet`. Simplest.
-- **VNet peering** — peer `bphost`'s VNet with `natslab-vnet`. Production-realistic.
-- **Add a `ProxyJump`** — extend `inventory.yml.j2` so `client1` proxies through `client0`. No infra change required, but adds a hop and a dependency.
-
-If `bphost` does not yet have private reachability, run `scripts/deploy.sh -- --limit nats_servers,nats_clients[0]` to skip `client1` for now.
+The inventory template still contains a `ProxyJump` fallback for any client whose `public_ip` is null. That branch is dead code with the current Bicep (all clients are public), but exists so a future variant — e.g. dropping public IPs on a subset of clients for a multi-tier topology test — works without re-templating the inventory.
 
 ## 10. Alternatives Considered
 

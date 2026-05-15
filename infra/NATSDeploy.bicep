@@ -330,8 +330,8 @@ resource natsVm 'Microsoft.Compute/virtualMachines@2023-09-01' = [for i in range
    Client NICs & VMs
 -------------------------- */
 
-resource clientPublicIp 'Microsoft.Network/publicIPAddresses@2023-05-01' = {
-  name: '${clientVmPrefix}0-pip'
+resource clientPublicIp 'Microsoft.Network/publicIPAddresses@2023-05-01' = [for i in range(0, clientNodeCount): {
+  name: '${clientVmPrefix}${i}-pip'
   location: location
   sku: {
     name: 'Standard'
@@ -339,7 +339,7 @@ resource clientPublicIp 'Microsoft.Network/publicIPAddresses@2023-05-01' = {
   properties: {
     publicIPAllocationMethod: 'Static'
   }
-}
+}]
 
 resource clientNic 'Microsoft.Network/networkInterfaces@2023-05-01' = [for i in range(0, clientNodeCount): {
   name: '${clientVmPrefix}${i}-nic'
@@ -353,9 +353,9 @@ resource clientNic 'Microsoft.Network/networkInterfaces@2023-05-01' = [for i in 
           subnet: {
             id: vnet.properties.subnets[0].id
           }
-          publicIPAddress: i == 0 ? {
-            id: clientPublicIp.id
-          } : null
+          publicIPAddress: {
+            id: clientPublicIp[i].id
+          }
         }
       }
     ]
@@ -430,4 +430,4 @@ output natsNodePrivateIps array = [for i in range(0, natsNodeCount): natsNic[i].
 
 output clientNames array = [for i in range(0, clientNodeCount): '${clientVmPrefix}${i}']
 output clientPrivateIps array = [for i in range(0, clientNodeCount): clientNic[i].properties.ipConfigurations[0].properties.privateIPAddress]
-output client0PublicIp string = clientPublicIp.properties.ipAddress
+output clientPublicIps array = [for i in range(0, clientNodeCount): clientPublicIp[i].properties.ipAddress]

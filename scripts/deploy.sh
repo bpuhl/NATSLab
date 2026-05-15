@@ -95,7 +95,6 @@ fi
 OUTPUTS=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NAME" --query properties.outputs)
 
 ADMIN_USERNAME=$(echo "$OUTPUTS" | jq -r '.adminUsername.value')
-CLIENT0_PUBLIC_IP=$(echo "$OUTPUTS" | jq -r '.client0PublicIp.value')
 
 CONTEXT_FILE=$(mktemp)
 trap 'rm -f "$CONTEXT_FILE"' EXIT
@@ -103,7 +102,6 @@ trap 'rm -f "$CONTEXT_FILE"' EXIT
 echo "$OUTPUTS" | jq \
   --arg admin    "$ADMIN_USERNAME" \
   --arg ssh_key  "$SSH_PRIVATE_KEY" \
-  --arg cli0_pip "$CLIENT0_PUBLIC_IP" \
   '{
     admin_username:   $admin,
     ssh_private_key:  $ssh_key,
@@ -121,12 +119,12 @@ echo "$OUTPUTS" | jq \
         })
     ),
     nats_clients: (
-      [ .clientNames.value, .clientPrivateIps.value ]
+      [ .clientNames.value, .clientPublicIps.value, .clientPrivateIps.value ]
       | transpose | to_entries
       | map({
           name:       .value[0],
-          public_ip:  (if .key == 0 then $cli0_pip else null end),
-          private_ip: .value[1],
+          public_ip:  .value[1],
+          private_ip: .value[2],
           index:      .key
         })
     )

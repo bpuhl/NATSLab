@@ -63,7 +63,7 @@ A thin bash wrapper (`scripts/deploy.sh`) glues them together: it runs `az deplo
 |   │   :4222 :6222 :8222 │                                                |
 |   │                     │                                                |
 |   │  nats-client0       │  public IP (SSH + smoke test)                  |
-|   │  nats-client1       │  private only (bphost needs L3 to subnet)      |
+|   │  nats-client1       │  per-VM public IP (parallel to client0)        |
 |   └─────────────────────┘                                                |
 +-------------------------------------------------------------------------+
 ```
@@ -80,7 +80,7 @@ Defined in [infra/NATSDeploy.bicep](infra/NATSDeploy.bicep). No more `Microsoft.
   - TCP probe on 4222, rule 4222→4222
 - A record `nats` → LB public IP, written into DNS zone `lab.imav8n.com` (which lives in a separate resource group `overwatch`, alongside `bphost`). The cross-RG write is done via the `infra/modules/dnsARecord.bicep` module.
 - 4× `nats-node{0..3}` VMs, each with system-assigned managed identity and its own static Standard public IP
-- 2× `nats-client{0..1}` VMs; `client0` has a static Standard public IP, `client1` is private only
+- 2× `nats-client{0..1}` VMs; each has its own static Standard public IP for SSH from `bphost`
 
 **Bicep outputs** that drive the Ansible inventory:
 
@@ -90,8 +90,8 @@ Defined in [infra/NATSDeploy.bicep](infra/NATSDeploy.bicep). No more `Microsoft.
 | `natsNodePublicIps[]`          | `ansible_host` for nats_servers          |
 | `natsNodePrivateIps[]`         | cluster routes in `nats.conf`            |
 | `clientNames[]`                | inventory hostnames                      |
-| `client0PublicIp`              | `ansible_host` for client0               |
-| `clientPrivateIps[]`           | `ansible_host` for client1 + `private_ip` |
+| `clientPublicIps[]`            | `ansible_host` per client                |
+| `clientPrivateIps[]`           | `private_ip` host var                    |
 | `natsPublicFqdn`               | `nats_public_fqdn` (smoke test URL)     |
 | `keyVaultName`, `pfxSecretName` | cert fetch on bphost                   |
 | `adminUsername`                | `ansible_user`                           |
@@ -184,7 +184,7 @@ A future iteration can combine **Packer** (golden image with `nats-server` pre-i
 - **Per-VM public IPs on NATS nodes** — adds 4 public IPs (cost) but removes the need for VNet peering between bphost and the lab VNet, and lets bphost address each node directly. The NSG already allowed SSH from the internet, so blast radius is unchanged.
 - **Cert fetched once on bphost, distributed via Ansible** — single point of cert handling, no per-VM Azure CLI install, no KV access policy per MSI. Trade-off: the PEMs briefly exist on bphost in `/tmp/natslab-cert/`.
 - **Cluster routes use short hostnames** — relies on Azure-provided VNet DNS to resolve `nats-node{0..3}`. Same convention as the prior CSE design.
-- **`client1` is reached by its private IP** — keeps `client1` private; requires `bphost` to have L3 reachability to `10.0.1.0/24` (same VNet, peering, or extend the inventory template with `ProxyJump`).
+- **Every client has its own public IP** — uniform with the NATS node fleet. Costs one extra public IP, but removes the dependency on VNet peering or `ProxyJump` through `client0` now that `bphost` lives in a different RG (`overwatch`).
 - **NATS service runs as root by default** — `nats_service_user` is set in `group_vars/nats_servers.yml`. Acceptable for a lab; production would prefer a dedicated `nats` user.
 - **Versions are pinned** — `nats_server_version` and `nats_cli_version` are explicit semver strings in `group_vars/all.yml`, not `latest`.
 
