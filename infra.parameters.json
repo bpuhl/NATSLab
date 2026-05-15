@@ -6,7 +6,7 @@
       "value": "bpuhl"
     },
     "adminSshPublicKey": {
-      "value": "sssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEltoasktwSKmsD1ON6wKwdpq85xMVBPYbdakjik3mW8 bpuhl@bphost"
+      "value": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEltoasktwSKmsD1ON6wKwdpq85xMVBPYbdakjik3mW8 bpuhl@bphost"
     },
     "vmSize": {
       "value": "Standard_B2ts_v2"
