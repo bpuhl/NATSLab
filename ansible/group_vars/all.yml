@@ -1,6 +1,6 @@
 ---
 nats_server_version: "2.14.0"
-nats_cli_version: "0.1.5"
+nats_cli_version: "0.4.0"
 
 nats_server_arch: "linux-amd64"
 nats_cli_arch: "linux-amd64"
