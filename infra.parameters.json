@@ -6,7 +6,7 @@
       "value": "bpuhl"
     },
     "adminSshPublicKey": {
-      "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC5nb6fm/H5azvxyqa4ZifzNCW5eniqiLQdTr1jFr3Zp/mprj24BW0vRhWCQlwgutKLvAhuAvT8xSRZ+gTHWPGM9E5U+LDkPLfSDDMCKiGMuJGK90DFDRJG/nD2DE5EQ6TBv8MmjmZfklz0HbLHBT6lXwZ+lpqmN7XtGoVhz3Xwy1Z13U2/jg0k/TQrDx/iG0DESbzeOEOxDB04Eo6X0F2S7eRvMoC7ixjm3q/G8McHyJ0CAiIU5pzyGdH3rjoAtpUur9iiaYAXN41LUlJG4TH8CtJrLWzvL8jEgrbPO88UQWQsQVLFhg2F0dZPaC/r9pyXOP1SdHgZA5PNTxiqEXgFVRI8lADXwJHiHIzuVbEglL0NOT/GzwW5JX2z21/qyU30opY2JZwG4pvLM+wlxLCAg8S4tOFpsz1qK7HgC/XJrPLjGC5OPLZ1vDKTDASC90GZJbPyRAGFYr8yvr0Z9fCq6hSS0ZemHxd1DMC4LYCYXvQmQUki8Y+kVdre1k8MN0k="
+      "value": "sssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEltoasktwSKmsD1ON6wKwdpq85xMVBPYbdakjik3mW8 bpuhl@bphost"
     },
     "vmSize": {
       "value": "Standard_B2ts_v2"
