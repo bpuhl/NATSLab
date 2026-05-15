@@ -30,6 +30,14 @@
     group: "{{ nats_service_group }}"
     mode: "0750"
 
+- name: Ensure JetStream store directory exists
+  ansible.builtin.file:
+    path: "{{ nats_jetstream_dir }}"
+    state: directory
+    owner: "{{ nats_service_user }}"
+    group: "{{ nats_service_group }}"
+    mode: "0750"
+
 - name: Copy cert.pem from control node
   ansible.builtin.copy:
     src: "{{ cert_stage_dir }}/cert.pem"
