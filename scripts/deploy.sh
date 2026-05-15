@@ -140,5 +140,5 @@ fi
 
 # ---------- 3. Ansible ----------
 echo "[3/3] Running ansible-playbook $PLAYBOOK …"
-cd "$ANSIBLE_DIR"
+cd "$REPO_ROOT"
 ansible-playbook -i "$INVENTORY_OUT" "$PLAYBOOK" "${ANSIBLE_ARGS[@]}"
