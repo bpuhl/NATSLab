@@ -5,6 +5,10 @@ nats_cli_version: "0.4.0"
 nats_server_arch: "linux-amd64"
 nats_cli_arch: "linux-amd64"
 
+# Release archive format. NATS server changed from .zip to .tar.gz in 2.14.
+# Override to "zip" if pinning an older nats_server_version.
+nats_server_archive_ext: "tar.gz"
+
 nats_config_dir: /etc/nats
 nats_cert_dir: /etc/nats/certs
 nats_install_bin: /usr/local/bin/nats-server

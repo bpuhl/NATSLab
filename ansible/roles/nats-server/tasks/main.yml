@@ -64,14 +64,14 @@
 
 - name: Download nats-server release archive
   ansible.builtin.get_url:
-    url: "https://github.com/nats-io/nats-server/releases/download/v{{ nats_server_version }}/nats-server-v{{ nats_server_version }}-{{ nats_server_arch }}.zip"
-    dest: "/tmp/nats-server-v{{ nats_server_version }}.zip"
+    url: "https://github.com/nats-io/nats-server/releases/download/v{{ nats_server_version }}/nats-server-v{{ nats_server_version }}-{{ nats_server_arch }}.{{ nats_server_archive_ext }}"
+    dest: "/tmp/nats-server-v{{ nats_server_version }}.{{ nats_server_archive_ext }}"
     mode: "0644"
   when: nats_server_version not in (nats_installed_version.stdout | default(''))
 
 - name: Unpack nats-server archive
   ansible.builtin.unarchive:
-    src: "/tmp/nats-server-v{{ nats_server_version }}.zip"
+    src: "/tmp/nats-server-v{{ nats_server_version }}.{{ nats_server_archive_ext }}"
     dest: /tmp/
     remote_src: yes
   when: nats_server_version not in (nats_installed_version.stdout | default(''))
